@@ -1,53 +1,96 @@
-// MainContent.jsx
-// This is where the chat lives
-// We use useState to track messages and user input
-
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
+import ReactMarkdown from 'react-markdown'
 
 function MainContent() {
 
-  // messages = array of chat messages [{role, content}, ...]
-  // each message has a role ("user" or "ai") and content (the text)
   const [messages, setMessages] = useState([])
-
-  // inputValue = what the user is currently typing
   const [inputValue, setInputValue] = useState("")
-
-  // isLoading = true when AI is thinking, false otherwise
   const [isLoading, setIsLoading] = useState(false)
 
-  // This function runs when user clicks Send
-  const handleSend = async () => {
+  // Auto scroll to bottom when new messages arrive
+  const messagesEndRef = useRef(null)
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages])
 
-    // Don't send if input is empty or AI is still responding
+  const handleSend = async () => {
     if (!inputValue.trim() || isLoading) return
 
-    // Step 1: Save the user's message and clear the input box
+    // Add user message
     const userMessage = { role: "user", content: inputValue }
-    setMessages(prev => [...prev, userMessage])
+    const updatedMessages = [...messages, userMessage]
+    setMessages(updatedMessages)
     setInputValue("")
     setIsLoading(true)
 
-    // Step 2: For now, simulate an AI response (we'll connect real AI next)
-    setTimeout(() => {
-      const aiMessage = {
-        role: "ai",
-        content: "I'm InsightAI! I'll be connected to Claude AI in the next step. 🚀"
+    // Add empty AI message — words will fill in one by one
+    setMessages(prev => [...prev, { role: "assistant", content: "" }])
+
+    try {
+      // Send to our backend server
+      const response = await fetch("http://localhost:3001/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: updatedMessages.map(msg => ({
+            role: msg.role,
+            content: msg.content
+          }))
+        })
+      })
+
+      // Read streaming response word by word
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder()
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        const chunk = decoder.decode(value)
+        const lines = chunk.split('\n')
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6)
+
+            if (data === '[DONE]') {
+              setIsLoading(false)
+              break
+            }
+
+            try {
+             const parsed = JSON.parse(data)
+setMessages(prev => {
+  const updated = [...prev]
+  // Create a NEW object instead of mutating the old one
+  updated[updated.length - 1] = {
+    ...updated[updated.length - 1],
+    content: updated[updated.length - 1].content + parsed.text
+  }
+  return updated
+})
+              
+            } catch (e) {}
+          }
+        }
       }
-      // ...prev means "keep all old messages, add the new one at the end"
-      setMessages(prev => [...prev, aiMessage])
+
+    } catch (error) {
+      console.error('Error:', error)
+      setMessages(prev => [...prev, {
+        role: "assistant",
+        content: "❌ Error connecting to server. Is the server running?"
+      }])
       setIsLoading(false)
-    }, 1000) // wait 1 second to simulate thinking
+    }
   }
 
-  // This runs when user presses Enter key
   const handleKeyDown = (e) => {
     if (e.key === "Enter") handleSend()
   }
 
   return (
-    // flex flex-col = stack everything vertically
-    // flex-1 = take all remaining width after sidebar
     <div className="flex-1 flex flex-col h-screen">
 
       {/* Top bar */}
@@ -56,11 +99,9 @@ function MainContent() {
       </div>
 
       {/* Messages Area */}
-      {/* flex-1 = takes all space between topbar and input */}
-      {/* overflow-y-auto = scroll when messages overflow */}
       <div className="flex-1 overflow-y-auto p-6 space-y-4">
 
-        {/* Show welcome message when no messages yet */}
+        {/* Welcome screen when no messages */}
         {messages.length === 0 && (
           <div className="text-center mt-20">
             <h2 className="text-4xl font-bold text-white mb-4">
@@ -72,38 +113,39 @@ function MainContent() {
           </div>
         )}
 
-        {/* Loop through messages and show each one */}
-        {/* messages.map goes through each message one by one */}
+        {/* Render each message */}
         {messages.map((msg, index) => (
           <div
             key={index}
-            // If user message → align right. If AI → align left
             className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
           >
+            {/* AI avatar */}
+            {msg.role === "assistant" && (
+              <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-xs font-bold mr-2 mt-1 shrink-0">
+                AI
+              </div>
+            )}
+
             <div
               className={`max-w-2xl px-4 py-3 rounded-2xl text-sm leading-relaxed
                 ${msg.role === "user"
-                  ? "bg-blue-600 text-white"        // user = blue bubble
-                  : "bg-gray-800 text-gray-100"     // ai = dark bubble
+                  ? "bg-blue-600 text-white"
+                  : "bg-gray-800 text-gray-100"
                 }`}
             >
-              {msg.content}
+              <ReactMarkdown>{msg.content}</ReactMarkdown>
+              {/* Blinking cursor while AI is typing */}
+              {msg.role === "assistant" && isLoading && index === messages.length - 1 && (
+                <span className="inline-block w-2 h-4 bg-blue-400 ml-1 animate-pulse" />
+              )}
             </div>
           </div>
         ))}
 
-        {/* Show "thinking" animation while AI is responding */}
-        {isLoading && (
-          <div className="flex justify-start">
-            <div className="bg-gray-800 px-4 py-3 rounded-2xl text-gray-400 text-sm">
-              InsightAI is thinking...
-            </div>
-          </div>
-        )}
-
+        <div ref={messagesEndRef} />
       </div>
 
-      {/* Input Area — always stays at the bottom */}
+      {/* Input Area */}
       <div className="p-4 border-t border-gray-800">
         <div className="flex items-center gap-3 bg-gray-800 rounded-2xl px-4 py-3 border border-gray-700">
           <input
@@ -117,11 +159,12 @@ function MainContent() {
           <button
             onClick={handleSend}
             disabled={isLoading}
-            className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-4 py-2 rounded-xl text-sm font-medium"
+            className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-4 py-2 rounded-xl text-sm font-medium transition-colors"
           >
-            Send
+            {isLoading ? "..." : "Send"}
           </button>
         </div>
+        <p className="text-xs text-gray-600 mt-2 text-center">Press Enter to send</p>
       </div>
 
     </div>
