@@ -1,51 +1,47 @@
 // Sidebar.jsx
-// This is the left panel of our app
-// It contains the logo and navigation links
+// Now receives activePage and setActivePage as props
+// Props = data passed from parent (App.jsx) to child (Sidebar)
 
-function Sidebar() {
+function Sidebar({ activePage, setActivePage }) {
+
+  // Nav items defined as an array
+  // Makes it easy to add more pages later
+  const navItems = [
+    { id: 'chat', label: '💬 Chat' },
+    { id: 'dashboard', label: '📊 Dashboard' },
+    { id: 'projects', label: '📁 Projects' },
+    { id: 'settings', label: '⚙️ Settings' },
+  ]
+
   return (
-    // h-screen = full height of the screen
-    // w-64 = fixed width of 256px
-    // bg-gray-900 = slightly lighter than the main dark background
-    // flex flex-col = stack children vertically
-    // border-r = thin line on the right side separating sidebar from main
     <div className="h-screen w-64 bg-gray-900 flex flex-col border-r border-gray-800">
-      
-      {/* Logo Area */}
+
+      {/* Logo */}
       <div className="p-6 border-b border-gray-800">
-        {/* text-xl = large text, font-bold = thick, text-blue-400 = blue color */}
         <h1 className="text-xl font-bold text-blue-400">⚡ InsightAI</h1>
         <p className="text-xs text-gray-500 mt-1">AI Analytics Dashboard</p>
       </div>
 
-      {/* Navigation Links */}
-      {/* flex-1 = takes remaining space, p-4 = padding inside */}
+      {/* Nav Links */}
       <nav className="flex-1 p-4 space-y-2">
-
-        {/* Each nav item is a button */}
-        {/* w-full = full width, text-left = align text left */}
-        <button className="w-full text-left px-4 py-3 rounded-lg bg-blue-600 text-white font-medium">
-          💬 Chat
-        </button>
-
-        <button className="w-full text-left px-4 py-3 rounded-lg text-gray-400 hover:bg-gray-800 hover:text-white">
-          📊 Dashboard
-        </button>
-
-        <button className="w-full text-left px-4 py-3 rounded-lg text-gray-400 hover:bg-gray-800 hover:text-white">
-          📁 Projects
-        </button>
-
-        <button className="w-full text-left px-4 py-3 rounded-lg text-gray-400 hover:bg-gray-800 hover:text-white">
-          ⚙️ Settings
-        </button>
-
+        {navItems.map(item => (
+          <button
+            key={item.id}
+            onClick={() => setActivePage(item.id)}
+            className={`w-full text-left px-4 py-3 rounded-lg font-medium transition-colors
+              ${activePage === item.id
+                ? 'bg-blue-600 text-white'        // active = blue
+                : 'text-gray-400 hover:bg-gray-800 hover:text-white'  // inactive = gray
+              }`}
+          >
+            {item.label}
+          </button>
+        ))}
       </nav>
 
-      {/* Bottom user section */}
+      {/* User Section */}
       <div className="p-4 border-t border-gray-800">
         <div className="flex items-center gap-3">
-          {/* User avatar circle */}
           <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-sm font-bold">
             U
           </div>
